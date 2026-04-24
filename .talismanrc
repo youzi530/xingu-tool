@@ -1,0 +1,13 @@
+fileignoreconfig:
+- filename: mobile/.env.production
+  checksum: b794e7f622478f1efcbebe708d5f555a25ddfc7515ce4065db8de96fba874808
+- filename: mobile/package-lock.json
+  checksum: fbd2669e7fe6381e7dc06bdf12a9d2be790c0dae5c0dc9fc9d304b14c89f02a5
+- filename: backend/render.yaml
+  checksum: d4ea03b7a7a7e951429e188a0725b55db9b0ace7735f49a77757a43b8a7785f3
+- filename: mobile/src/screens/IPOListScreen.tsx
+  checksum: 39f7a9afd2e4e0e0b454a9b349c1e1880a36ecd9bcca2e938019b3796f00bb3f
+- filename: mobile/src/screens/BloggersScreen.tsx
+  checksum: 846e700b3d509006d504224824361a1b50f0f715c67831dd55b44cd147d5329e
+- filename: mobile/src/screens/IPODetailScreen.tsx
+  checksum: f13ba6e3c179ed7fb3623bf7dc5cfb8b061797f7130df9a39da133584836a60a

@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: xingu-tool-api
+    runtime: python
+    rootDir: .
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: xingu-db
+          property: connectionString
+      - key: ITICK_TOKEN
+        sync: false        # 在 Render Dashboard 手动填写
+      - key: PYTHON_VERSION
+        value: 3.12.0
+
+databases:
+  - name: xingu-db
+    plan: free
+    databaseName: xingu
+    user: xingu
