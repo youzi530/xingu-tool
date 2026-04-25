@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from typing import List, Optional
 
@@ -17,16 +17,26 @@ def list_ipos(
     db: Session = Depends(get_db),
 ):
     """获取新股列表，可按状态筛选"""
-    q = db.query(models.IPO)
+    # 用子查询一次性拿到所有 analysis 计数，避免 N+1 查询
+    count_subq = (
+        db.query(
+            models.Analysis.ipo_id,
+            func.count(models.Analysis.id).label("cnt"),
+        )
+        .group_by(models.Analysis.ipo_id)
+        .subquery()
+    )
+
+    q = (
+        db.query(models.IPO, func.coalesce(count_subq.c.cnt, 0).label("analysis_count"))
+        .outerjoin(count_subq, models.IPO.id == count_subq.c.ipo_id)
+    )
     if status:
         q = q.filter(models.IPO.status == status)
-    ipos = q.order_by(models.IPO.subscribe_start.desc()).offset(skip).limit(limit).all()
+    rows = q.order_by(models.IPO.subscribe_start.desc()).offset(skip).limit(limit).all()
 
     result = []
-    for ipo in ipos:
-        count = db.query(func.count(models.Analysis.id)).filter(
-            models.Analysis.ipo_id == ipo.id
-        ).scalar()
+    for ipo, count in rows:
         out = schemas.IPOOut.model_validate(ipo)
         out.analysis_count = count
         result.append(out)
@@ -40,7 +50,11 @@ def get_ipo(ipo_id: int, blogger_id: Optional[int] = None, db: Session = Depends
     if not ipo:
         raise HTTPException(status_code=404, detail="新股不存在")
 
-    analyses_query = db.query(models.Analysis).filter(models.Analysis.ipo_id == ipo_id)
+    analyses_query = (
+        db.query(models.Analysis)
+        .options(joinedload(models.Analysis.blogger))  # 避免 blogger 懒加载 N+1
+        .filter(models.Analysis.ipo_id == ipo_id)
+    )
     if blogger_id:
         analyses_query = analyses_query.filter(models.Analysis.blogger_id == blogger_id)
     analyses = analyses_query.order_by(models.Analysis.published_at.desc()).all()

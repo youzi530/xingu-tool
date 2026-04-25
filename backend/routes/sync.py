@@ -4,6 +4,7 @@ POST /sync/ipos     — 手动触发从 iTick 同步港股新股列表
 POST /sync/articles — 手动触发搜狗搜索，自动发现并入库各博主的打新文章
 GET  /sync/status   — 查看上次同步状态
 """
+import asyncio
 import logging
 from datetime import datetime
 from typing import Optional
@@ -223,6 +224,48 @@ async def sync_full(db: Session = Depends(get_db)):
         "articles": step2,
         "enrich": step3,
         "discover": step4,
+    }
+
+
+@router.post("/fix-urls", summary="修复数据库中已存储的过期搜狗跳转链接")
+async def sync_fix_urls(db: Session = Depends(get_db)):
+    """
+    扫描所有 content_url 仍为搜狗跳转链接（weixin.sogou.com）的文章，
+    逐一 follow redirect 解析为真实的 mp.weixin.qq.com 链接并更新入库。
+    已是微信链接的记录直接跳过。
+    """
+    from sogou_monitor import resolve_article_url
+
+    stale = db.query(models.Analysis).filter(
+        models.Analysis.content_url.like("%weixin.sogou.com%")
+    ).all()
+
+    total = len(stale)
+    fixed = skipped = failed = 0
+
+    logger.info("修复过期搜狗链接：共发现 %d 条记录", total)
+
+    for analysis in stale:
+        original = analysis.content_url
+        real_url = await resolve_article_url(original)
+        if real_url != original and "mp.weixin.qq.com" in real_url:
+            analysis.content_url = real_url
+            fixed += 1
+            logger.info("  ✅ 修复 [%d]: %s → %s", analysis.id, original[:60], real_url[:60])
+        else:
+            failed += 1
+            logger.debug("  ⚠️  无法解析 [%d]: %s", analysis.id, original[:60])
+
+        # 避免请求过于密集
+        await asyncio.sleep(0.5)
+
+    db.commit()
+    logger.info("链接修复完成：成功 %d，失败 %d，总计 %d", fixed, failed, total)
+    return {
+        "message": "链接修复完成",
+        "total": total,
+        "fixed": fixed,
+        "failed": failed,
     }
 
 
