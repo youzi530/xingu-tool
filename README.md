@@ -57,7 +57,7 @@ cp .env.example .env
 # 编辑 .env，将 ITICK_TOKEN=your_itick_token_here 改为真实 Token
 
 python seed_data.py          # 初始化示例数据（可选）
-uvicorn main:app --reload    # 启动在 http://localhost:8000
+uvicorn main:app --reload --host 0.0.0.0 --port 8000    # 启动在 http://localhost:8000
 # API 文档: http://localhost:8000/docs
 ```
 
@@ -73,6 +73,7 @@ uvicorn main:app --reload    # 启动在 http://localhost:8000
 cd mobile
 npm install
 npm start                    # 启动 Expo Dev Server
+npx expo start --clear
 # 用 Expo Go App 扫码即可在手机上预览
 ```
 

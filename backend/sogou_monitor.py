@@ -511,7 +511,7 @@ async def _search_with_httpx(query: str, max_pages: int, proxy: Optional[str]) -
                     ))
 
                 if page < max_pages - 1:
-                    await asyncio.sleep(random.uniform(3, 6))
+                    await asyncio.sleep(random.uniform(1, 2))
 
             except httpx.HTTPError as e:
                 logger.warning("搜狗请求异常: %s", e)
@@ -523,72 +523,115 @@ async def _search_with_httpx(query: str, max_pages: int, proxy: Optional[str]) -
 
 # ─── 批量新股监控 ─────────────────────────────────────────────────────────────
 
-async def monitor_ipo_articles(db_session, active_ipos, bloggers) -> dict:
-    """对每只活跃新股执行搜索，新文章自动入库。"""
+# 并发搜索限流（最多 3 个 IPO 同时搜索，防止 Sogou 封禁）
+_SEARCH_SEM = asyncio.Semaphore(3)
+# 正在进行后台同步的 IPO id 集合（防止重复触发）
+_in_progress_syncs: set = set()
+
+
+async def _fetch_articles_for_ipo(ipo) -> tuple:
+    """并行搜索单只新股的文章，返回 (ipo, articles) 元组（纯网络操作，不写 DB）"""
+    has_chinese = any('\u4e00' <= c <= '\u9fff' for c in ipo.stock_name)
+    if not has_chinese:
+        logger.info("跳过英文名股票（搜索无效）: %s [%s]", ipo.stock_name, ipo.stock_code)
+        return (ipo, [])
+
+    async with _SEARCH_SEM:
+        query = f"{ipo.stock_name} 打新"
+        logger.info("搜索新股文章: %s", query)
+        articles = await search_articles(query, max_pages=5)
+
+        query2 = f"{ipo.stock_name} 港股"
+        logger.info("补充搜索: %s", query2)
+        articles2 = await search_articles(query2, max_pages=3)
+
+        seen_urls = {a.content_url for a in articles}
+        for a in articles2:
+            if a.content_url not in seen_urls:
+                articles.append(a)
+                seen_urls.add(a.content_url)
+
+        # 礼貌延迟，避免同一 IP 请求过于集中
+        await asyncio.sleep(random.uniform(2, 4))
+        return (ipo, articles)
+
+
+def _save_articles_to_db(db_session, ipo, articles, bloggers, existing_urls) -> int:
+    """将搜索结果批量写入 DB（同步，无网络 IO）。返回新增文章数。"""
     import models
 
-    found_total = saved_total = 0
+    saved = 0
+    for art in articles:
+        if not art.content_url or art.content_url in existing_urls:
+            continue
 
+        matched_blogger = None
+        for blogger in bloggers:
+            if _fuzzy_match(blogger.name, art.account_name):
+                matched_blogger = blogger
+                break
+
+        if not matched_blogger and art.account_name:
+            matched_blogger = models.Blogger(
+                name=art.account_name,
+                channel=models.SourceChannel.wechat,
+                description="由搜狗搜索自动发现",
+            )
+            db_session.add(matched_blogger)
+            db_session.flush()
+            bloggers.append(matched_blogger)
+            logger.info("自动创建新博主: %s", art.account_name)
+
+        if not matched_blogger:
+            continue
+
+        # 直接存搜狗跳转 URL，前端点击时再懒加载真实链接（避免此处串行 resolve）
+        analysis = models.Analysis(
+            ipo_id=ipo.id,
+            blogger_id=matched_blogger.id,
+            title=art.title,
+            summary=art.summary,
+            content_url=art.content_url,
+            source_channel=models.SourceChannel.wechat,
+            published_at=art.published_at,
+        )
+        db_session.add(analysis)
+        existing_urls.add(art.content_url)
+        saved += 1
+        logger.info("  ✅ 保存: [%s] %s", matched_blogger.name, art.title[:40])
+
+    return saved
+
+
+async def monitor_ipo_articles(db_session, active_ipos, bloggers) -> dict:
+    """
+    对每只活跃新股执行搜索并入库。
+    阶段一：并行搜索（最多 3 并发），纯网络 IO。
+    阶段二：串行写库（避免 SQLAlchemy session 并发问题）。
+    注意：不再对每篇文章调用 resolve_article_url，改为前端懒加载，极大提升速度。
+    """
+    import models
+
+    # ── 阶段一：并行搜索 ────────────────────────────────────────────────────────
+    tasks = [_fetch_articles_for_ipo(ipo) for ipo in active_ipos]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # ── 阶段二：串行写库 ────────────────────────────────────────────────────────
     existing_urls: set = {
         row.content_url
         for row in db_session.query(models.Analysis.content_url).all()
         if row.content_url
     }
 
-    for ipo in active_ipos:
-        has_chinese = any('\u4e00' <= c <= '\u9fff' for c in ipo.stock_name)
-        if not has_chinese:
-            logger.info("跳过英文名股票（搜索无效）: %s [%s]", ipo.stock_name, ipo.stock_code)
+    found_total = saved_total = 0
+    for result in results:
+        if isinstance(result, Exception):
+            logger.error("搜索任务异常: %s", result)
             continue
-
-        query = f"{ipo.stock_name} 打新"
-        logger.info("搜索新股文章: %s", query)
-
-        articles = await search_articles(query, max_pages=2)
+        ipo, articles = result
         found_total += len(articles)
-
-        for art in articles:
-            if art.content_url in existing_urls:
-                continue
-
-            matched_blogger = None
-            for blogger in bloggers:
-                if _fuzzy_match(blogger.name, art.account_name):
-                    matched_blogger = blogger
-                    break
-
-            if not matched_blogger and art.account_name:
-                matched_blogger = models.Blogger(
-                    name=art.account_name,
-                    channel=models.SourceChannel.wechat,
-                    description="由搜狗搜索自动发现",
-                )
-                db_session.add(matched_blogger)
-                db_session.flush()
-                bloggers.append(matched_blogger)
-                logger.info("自动创建新博主: %s", art.account_name)
-
-            if not matched_blogger:
-                continue
-
-            real_url = await resolve_article_url(art.content_url)
-
-            analysis = models.Analysis(
-                ipo_id=ipo.id,
-                blogger_id=matched_blogger.id,
-                title=art.title,
-                summary=art.summary,
-                content_url=real_url,
-                source_channel=models.SourceChannel.wechat,
-                published_at=art.published_at,
-            )
-            db_session.add(analysis)
-            existing_urls.add(art.content_url)
-            saved_total += 1
-            logger.info("  ✅ 保存: [%s] %s", matched_blogger.name, art.title[:40])
-            await asyncio.sleep(0.5)
-
-        await asyncio.sleep(random.uniform(8, 15))
+        saved = _save_articles_to_db(db_session, ipo, articles, bloggers, existing_urls)
+        saved_total += saved
 
     db_session.commit()
     logger.info("文章监控完成：共发现 %d 篇，入库 %d 篇", found_total, saved_total)
@@ -597,3 +640,27 @@ async def monitor_ipo_articles(db_session, active_ipos, bloggers) -> dict:
         "saved": saved_total,
         "ipos_searched": len(active_ipos),
     }
+
+
+async def sync_single_ipo_articles(ipo_id: int, db_session) -> int:
+    """
+    对单只新股触发文章同步（供 IPO 详情页后台任务调用）。
+    内置防重入：同一 ipo_id 同时只允许一个同步任务运行。
+    返回本次新增文章数。
+    """
+    import models
+
+    if ipo_id in _in_progress_syncs:
+        logger.debug("IPO %d 同步已在进行中，跳过重复触发", ipo_id)
+        return 0
+
+    _in_progress_syncs.add(ipo_id)
+    try:
+        ipo = db_session.query(models.IPO).filter(models.IPO.id == ipo_id).first()
+        if not ipo:
+            return 0
+        bloggers = db_session.query(models.Blogger).all()
+        result = await monitor_ipo_articles(db_session, [ipo], bloggers)
+        return result["saved"]
+    finally:
+        _in_progress_syncs.discard(ipo_id)

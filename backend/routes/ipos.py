@@ -1,12 +1,33 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+import logging
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from typing import List, Optional
 
-from database import get_db
+from database import get_db, SessionLocal
 import models, schemas
 
 router = APIRouter(prefix="/ipos", tags=["IPO新股"])
+logger = logging.getLogger(__name__)
+
+# 文章数低于此阈值时，自动触发后台同步
+_AUTO_SYNC_THRESHOLD = 15
+
+
+async def _bg_sync_ipo(ipo_id: int) -> None:
+    """后台任务：为指定 IPO 拉取新文章（使用独立 DB session）"""
+    from sogou_monitor import sync_single_ipo_articles
+
+    db = SessionLocal()
+    try:
+        saved = await sync_single_ipo_articles(ipo_id, db)
+        if saved:
+            logger.info("后台同步完成 IPO %d：新增 %d 篇文章", ipo_id, saved)
+    except Exception:
+        logger.exception("后台同步 IPO %d 失败", ipo_id)
+    finally:
+        db.close()
 
 
 @router.get("/", response_model=List[schemas.IPOOut])
@@ -44,8 +65,13 @@ def list_ipos(
 
 
 @router.get("/{ipo_id}", response_model=schemas.IPOWithAnalyses)
-def get_ipo(ipo_id: int, blogger_id: Optional[int] = None, db: Session = Depends(get_db)):
-    """获取单只新股详情及所有分析"""
+async def get_ipo(
+    ipo_id: int,
+    background_tasks: BackgroundTasks,
+    blogger_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+):
+    """获取单只新股详情及所有分析。文章数不足时自动触发后台补抓。"""
     ipo = db.query(models.IPO).filter(models.IPO.id == ipo_id).first()
     if not ipo:
         raise HTTPException(status_code=404, detail="新股不存在")
@@ -58,6 +84,11 @@ def get_ipo(ipo_id: int, blogger_id: Optional[int] = None, db: Session = Depends
     if blogger_id:
         analyses_query = analyses_query.filter(models.Analysis.blogger_id == blogger_id)
     analyses = analyses_query.order_by(models.Analysis.published_at.desc()).all()
+
+    # 文章数不足时，在后台自动补抓（用户立即看到现有数据，不等待）
+    if len(analyses) < _AUTO_SYNC_THRESHOLD:
+        background_tasks.add_task(_bg_sync_ipo, ipo_id)
+        logger.info("IPO %d 文章数(%d) < %d，已触发后台补抓", ipo_id, len(analyses), _AUTO_SYNC_THRESHOLD)
 
     ipo_data = schemas.IPOOut.model_validate(ipo).model_dump()
     ipo_data['analysis_count'] = len(analyses)
