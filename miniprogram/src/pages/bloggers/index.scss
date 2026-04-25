@@ -1,0 +1,94 @@
+.page {
+  height: 100vh;
+  background: #F5F5F5;
+  display: flex;
+  flex-direction: column;
+}
+
+.list {
+  flex: 1;
+  padding: 24px;
+}
+
+.card {
+  background: #FFFFFF;
+  border-radius: 16px;
+  padding: 28px;
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+.avatar {
+  width: 88px;
+  height: 88px;
+  border-radius: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-right: 24px;
+}
+
+.avatar-text {
+  font-size: 36px;
+  font-weight: 700;
+  color: #FFFFFF;
+}
+
+.info {
+  flex: 1;
+}
+
+.name-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.name {
+  font-size: 32px;
+  font-weight: 700;
+  color: #1A1A1A;
+  margin-right: 14px;
+}
+
+.channel-badge {
+  background: #F0F0F0;
+  padding: 4px 14px;
+  border-radius: 20px;
+}
+
+.channel-text {
+  font-size: 20px;
+  color: #888888;
+}
+
+.desc {
+  font-size: 26px;
+  color: #666666;
+  line-height: 1.6;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.follower {
+  font-size: 22px;
+  color: #C8102E;
+  display: block;
+}
+
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 120px 0;
+}
+
+.empty-text {
+  font-size: 28px;
+  color: #BBBBBB;
+}

@@ -1,0 +1,234 @@
+.detail-page {
+  background: #F5F5F5;
+  height: 100vh;
+}
+
+.loading-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+}
+
+.loading-text {
+  font-size: 28px;
+  color: #BBBBBB;
+}
+
+// ── 信息卡片 ─────────────────────────────────────────────────────
+.info-card {
+  background: #FFFFFF;
+  margin: 24px 24px 0;
+  border-radius: 16px;
+  padding: 32px 28px 20px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+}
+
+.info-header {
+  margin-bottom: 24px;
+}
+
+.info-stock-name {
+  font-size: 40px;
+  font-weight: 700;
+  color: #1A1A1A;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.info-stock-code {
+  font-size: 24px;
+  color: #999999;
+  display: block;
+}
+
+.info-industry {
+  font-size: 22px;
+  color: #C8102E;
+  background: #FFF0F0;
+  padding: 4px 12px;
+  border-radius: 6px;
+  margin-top: 10px;
+  display: inline-block;
+}
+
+.divider {
+  height: 1px;
+  background: #F0F0F0;
+  margin: 16px 0;
+}
+
+.row-item {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+}
+
+.row-label {
+  font-size: 26px;
+  color: #888888;
+}
+
+.row-value {
+  font-size: 28px;
+  font-weight: 600;
+  color: #333333;
+}
+
+.description {
+  font-size: 26px;
+  color: #666666;
+  line-height: 1.7;
+  display: block;
+}
+
+// ── 博主筛选 ─────────────────────────────────────────────────────
+.section-title-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 32px 28px 12px;
+}
+
+.section-title {
+  font-size: 32px;
+  font-weight: 700;
+  color: #1A1A1A;
+  flex: 1;
+}
+
+.analysis-count {
+  font-size: 24px;
+  color: #C8102E;
+  background: #FFF0F0;
+  padding: 4px 14px;
+  border-radius: 20px;
+}
+
+.blogger-filter {
+  white-space: nowrap;
+  padding: 0 24px 16px;
+  display: flex;
+  flex-direction: row;
+}
+
+.blogger-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 24px;
+  border-radius: 40px;
+  background: #F0F0F0;
+  margin-right: 16px;
+  flex-shrink: 0;
+
+  &--active {
+    background: #C8102E;
+  }
+}
+
+.blogger-chip-text {
+  font-size: 24px;
+  color: #666666;
+
+  &--active {
+    color: #FFFFFF;
+    font-weight: 600;
+  }
+}
+
+// ── 分析卡片 ─────────────────────────────────────────────────────
+.analyses-list {
+  padding: 0 24px;
+}
+
+.analysis-card {
+  background: #FFFFFF;
+  border-radius: 16px;
+  padding: 28px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+}
+
+.analysis-header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.blogger-name {
+  font-size: 28px;
+  font-weight: 700;
+  color: #333333;
+}
+
+.rec-badge {
+  padding: 6px 16px;
+  border-radius: 20px;
+}
+
+.rec-text {
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.analysis-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #1A1A1A;
+  line-height: 1.5;
+  display: block;
+  margin-bottom: 10px;
+}
+
+.analysis-content {
+  font-size: 26px;
+  color: #666666;
+  line-height: 1.7;
+  display: block;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.analysis-footer {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid #F5F5F5;
+  padding-top: 14px;
+}
+
+.analysis-date {
+  font-size: 22px;
+  color: #BBBBBB;
+}
+
+.read-btn {
+  background: #C8102E;
+  padding: 8px 24px;
+  border-radius: 30px;
+}
+
+.read-btn-text {
+  font-size: 24px;
+  color: #FFFFFF;
+  font-weight: 600;
+}
+
+.no-analysis {
+  background: #FFFFFF;
+  border-radius: 16px;
+  padding: 80px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.no-analysis-text {
+  font-size: 28px;
+  color: #BBBBBB;
+}
